@@ -1,0 +1,42 @@
+{
+    "users": [
+        {
+            "created-at": 123412341234,
+            "id": "uuid-random",
+            "email": "email@email.com",
+            "first-name": "John",
+            "last-name": "Doe",
+            "phone": "(000) 000-0000",
+            "role": "admin | organizer | default",
+            "leagues": ["league1-uuid", "league2-uuid"]
+        }
+    ],
+    "leagues": [
+        {
+            "name": "The Cool League",
+            "description": "The coolest league",
+            "start-date": 123412341234,
+            "end-date": 123412341234,
+            "entry-fee": 10.5,
+            "id": "uuid-random",
+            "organizers": ["user1-uuid", "user2-uuid"],
+            "players": [
+                {
+                    "id": "user1-uuid",
+                    "payed": false,
+                    "transaction-id": "stripe-id"
+                }
+            ],
+            "games": [
+                {
+                    "scheduled": 12394912394912,
+                    "completed": null,
+                    "a": ["user1-uuid"],
+                    "b": ["user2-uuid"],
+                    "required-matches": 3,
+                    "match-scores": [{"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}]
+                }
+            ]
+        }
+    ]
+}
