@@ -77,7 +77,7 @@
     });
 </script>
 
-<main class="dark w-screen h-screen flex items-center justify-center bg-gradient-to-r bg-white dark:bg-gray-900">
+<main class="dark w-screen min-h-screen flex items-center justify-center bg-gradient-to-r bg-white dark:bg-gray-900 py-16">
     {#if !loading && !validating}
         <svelte:component this={page} />
     {:else}

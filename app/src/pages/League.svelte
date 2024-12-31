@@ -5,7 +5,7 @@
     import type { League } from "../model/League";
     import { onMount } from "svelte";
     import FirestoreDs, { type BulkInvites, type BulkUserData } from "../data-sources/FirestoreDs";
-    import { Alert, Button, Card, NumberInput, Spinner } from "flowbite-svelte";
+    import { Alert, Button, Card, NumberInput, Spinner, Toggle } from "flowbite-svelte";
     import AuthenticationState from "../state/AuthenticationState";
     import {
         Table,
@@ -19,22 +19,26 @@
     } from "flowbite-svelte";
     import FunctionsDs from "../data-sources/FunctionsDs";
     import { Status } from "../model/Status";
-    import { appError } from "../model/AppError";
+    import { AppError, appError, errorMessage } from "../model/AppError";
     import type { Invite } from "../model/Invite";
     import type { UserData } from "../model/UserData";
     import type { DocumentReference } from "firebase/firestore";
     import { fade } from "svelte/transition";
     import { CloseOutline } from "flowbite-svelte-icons";
+    import type { Game } from "../model/Game";
 
     let email = "";
     let matches = 3;
+    let duos = true;
     let id: string | null;
     let loading = true;
     let league: League | null = null;
     let showSchedule = false;
     let showAdd = false;
+    let showEditGame: Game | null;
+    let scores: { first: number; second: number }[] = [];
     let editing = false;
-    let error: string | null;
+    let error: AppError | null;
     let invites: BulkInvites = {};
     let userDatas: BulkUserData = {};
     let emails: { [id: string]: string } = {};
@@ -74,7 +78,25 @@
         editing = false;
         closeAddPlayers();
     }
-
+    async function scheduleGames() {
+        if (editing || !id) return;
+        editing = true;
+        let response = await FunctionsDs.scheduleGames(id, matches, duos);
+        console.log(response);
+        if (response.status != Status.success) {
+            error = appError(response.status);
+            editing = false;
+            return;
+        }
+        await getLeagueData();
+        editing = false;
+        closeAddPlayers();
+    }
+    async function updateGame() {
+        console.log(scores);
+        // console.log(firstScore);
+        // console.log(secondScore);
+    }
     async function getLeagueData() {
         if (!id) return;
 
@@ -127,12 +149,19 @@
         loading = false;
     });
 
+    function teamOf(game: Game): string | null {
+        let uid = AuthenticationState.uid ?? "";
+        if (game.a.map((e) => e.id).includes(uid)) return "a";
+        else if (game.b.map((e) => e.id).includes(uid)) return "b";
+        return null;
+    }
     function emailOf(ref: DocumentReference): string | null {
         const collectionPath = ref.path.split("/")[0];
         if (collectionPath === "users") {
             return emails[ref.id];
         } else if (collectionPath === "invites") {
-            return invites[ref.id].email;
+            return ""
+            // return invites[ref.id].email;
         }
         return null;
     }
@@ -150,7 +179,7 @@
         if (collectionPath === "users") {
             return userDatas[ref.id]["first-name"] + " " + userDatas[ref.id]["last-name"];
         } else if (collectionPath === "invites") {
-            return "Invited";
+            return invites[ref.id].email;
         }
         return null;
     }
@@ -195,7 +224,7 @@
             <div class="w-full" transition:fade={{ delay: 100 }}>
                 <Alert>
                     <div class="flex justify-between">
-                        {error}
+                        {errorMessage(error)}
                         <button
                             on:click={() => {
                                 error = null;
@@ -223,16 +252,58 @@
             </Card>
         {:else if showSchedule && canEdit()}
             <Card>
-                <form class="flex flex-col space-y-6" on:submit|preventDefault={addLeaguePlayer}>
+                <form class="flex flex-col space-y-6" on:submit|preventDefault={scheduleGames}>
                     <h3 class="text-xl font-medium text-gray-900 dark:text-white">Schedule Games</h3>
                     <Label class="space-y-2">
                         <span>Required Matches</span>
                         <NumberInput required bind:value={matches} />
                     </Label>
+                    <Toggle bind:checked={duos}>Duos</Toggle>
 
                     <div class="flex flex-row space-x-2">
                         <Button type="button" class="w-full" outline on:click={closeAddPlayers}>Cancel</Button>
-                        <Button type="submit" class="w-full" on:click={addLeaguePlayer}>Schedule</Button>
+                        <Button type="submit" class="w-full" on:click={scheduleGames}>Schedule</Button>
+                    </div>
+                </form>
+            </Card>
+        {:else if showEditGame != null && canEdit()}
+            <Card>
+                <form class="flex flex-col space-y-6" on:submit|preventDefault={updateGame}>
+                    <h3 class="text-xl font-medium text-gray-900 dark:text-white">Edit Game</h3>
+                    <Table>
+                        <TableHead>
+                            <TableHeadCell>Match</TableHeadCell>
+                            <TableHeadCell>{teamOf(showEditGame) != null ? "Your Score" : "A Team Score"}</TableHeadCell
+                            >
+                            <TableHeadCell
+                                >{teamOf(showEditGame) != null ? "Opponent Score" : "B Team Score"}</TableHeadCell
+                            >
+                        </TableHead>
+                        <TableBody tableBodyClass="divide-y">
+                            {#each Array.from({ length: showEditGame["required-matches"] }, (_, i) => i) as match}
+                                <TableBodyRow>
+                                    <TableBodyCell>{match}</TableBodyCell>
+                                    <TableBodyCell>
+                                        <NumberInput required bind:value={scores[match].first} />
+                                    </TableBodyCell>
+                                    <TableBodyCell>
+                                        <NumberInput required bind:value={scores[match].second} />
+                                    </TableBodyCell>
+                                </TableBodyRow>
+                            {/each}
+                        </TableBody>
+                    </Table>
+
+                    <div class="flex flex-row space-x-2">
+                        <Button
+                            type="button"
+                            class="w-full"
+                            outline
+                            on:click={() => {
+                                showEditGame = null;
+                            }}>Cancel</Button
+                        >
+                        <Button type="submit" class="w-full" on:click={updateGame}>Complete</Button>
                     </div>
                 </form>
             </Card>
@@ -263,7 +334,7 @@
                                         <span class="sr-only">Edit</span>
                                     </TableHeadCell>
                                 {/if}
-                                </tr>
+                            </tr>
                         </TableHead>
                         <TableBody tableBodyClass="divide-y">
                             {#if league.players.length > 0}
@@ -305,7 +376,7 @@
                                 <TableHeadCell>Score</TableHeadCell>
                                 {#if canEdit()}
                                     <TableHeadCell>
-                                        <span class="sr-only">Cancel</span>
+                                        <span class="sr-only">Score</span>
                                     </TableHeadCell>
                                 {/if}
                             </tr>
@@ -313,26 +384,59 @@
                         <TableBody tableBodyClass="divide-y">
                             {#if league.games.length > 0}
                                 {#each league.games as game}
-                                    <p>{JSON.stringify(game)}</p>
+                                    <TableBodyRow>
+                                        <TableBodyCell></TableBodyCell>
+                                        <TableBodyCell>{game.a.map((e) => nameOf(e)).join(", ")}</TableBodyCell>
+                                        <TableBodyCell>{game.b.map((e) => nameOf(e)).join(", ")}</TableBodyCell>
+                                        <TableBodyCell></TableBodyCell>
+                                        {#if canEdit()}
+                                            <TableBodyCell>
+                                                <button
+                                                    on:click={() => {
+                                                        showEditGame = game;
+                                                        scores = Array.from(
+                                                            { length: showEditGame["required-matches"] },
+                                                            () => ({
+                                                                first: 0,
+                                                                second: 0,
+                                                            })
+                                                        );
+                                                    }}
+                                                    class="font-medium text-primary-600 hover:underline dark:text-primary-500"
+                                                    >Score</button
+                                                >
+                                            </TableBodyCell>
+                                        {/if}
+                                    </TableBodyRow>
                                 {/each}
                             {:else}
-                            <TableBodyRow>
-                                <TableBodyCell colspan={canEdit() ? 5 : 4}>No games have been scheduled</TableBodyCell>
-                            </TableBodyRow>
-                        {/if}
+                                <TableBodyRow>
+                                    <TableBodyCell colspan={canEdit() ? 5 : 4}
+                                        >No games have been scheduled</TableBodyCell
+                                    >
+                                </TableBodyRow>
+                            {/if}
                         </TableBody>
                     </Table>
                 </div>
             </Card>
         {/if}
         {#if AuthenticationState.isLoggedIn}
-            <Button
-                type="button"
-                class="w-48"
-                on:click={() => {
-                    AuthenticationState.signOut();
-                }}>Sign Out</Button
-            >
+            <div class="flex space-x-4">
+                <Button
+                    outline
+                    type="button"
+                    on:click={() => {
+                        NavigationState.navigate("/dashboard");
+                    }}>Dashboard</Button
+                >
+                <Button
+                    type="button"
+                    on:click={() => {
+                        AuthenticationState.signOut();
+                    }}>Sign Out</Button
+                >
+            </div>
         {/if}
     </div>
 {:else}

@@ -45,5 +45,12 @@ export default class FunctionsDs {
         const getBulkEmails = httpsCallable(this.functions, 'getBulkEmails');   
         return (await getBulkEmails({uids})).data
     }
-
+    static async scheduleGames(league: string, matches: number, duos: Boolean): Promise<any> {
+        const scheduleGames = httpsCallable(this.functions, 'scheduleGames');   
+        return (await scheduleGames({
+            league,
+            matches: matches,
+            duos
+        })).data
+    }
 }

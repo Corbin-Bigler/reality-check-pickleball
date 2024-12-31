@@ -10,7 +10,7 @@ export default class FirestoreDs {
         if (!this._db) {
             firebaseApp()
             this._db = getFirestore();
-            connectFirestoreEmulator(this._db, '127.0.0.1', 8083);
+            connectFirestoreEmulator(this._db, '127.0.0.1', 8084);
         }
         return this._db;
     }

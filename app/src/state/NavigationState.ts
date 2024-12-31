@@ -19,6 +19,13 @@ class NavigationState {
         window.history.pushState({}, "", newUrl.href);        
     }
 
+    navigateBack() {
+        // const newUrl = new URL(to, window.location.origin)
+        // this.path.set(newUrl)
+        // this.params.set(newUrl.searchParams)
+        window.history.back()//pushState({}, "", newUrl.href);        
+    }
+
     setParam(key: string, value: string) {
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set(key, value);
