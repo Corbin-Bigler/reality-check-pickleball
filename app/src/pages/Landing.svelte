@@ -12,8 +12,8 @@
 
     let loggingIn = false
     let showLogIn = true;
-    let email = "biglercorbin@gmail.com";
-    let password = "Mcman0101!";
+    let email = "";
+    let password = "";
     let error: string | null = null;
 
     function closeAlert() {error = null}
