@@ -31,10 +31,9 @@
                 {
                     "scheduled": 12394912394912,
                     "completed": null,
-                    "a": ["user1-uuid"],
+                    "a": ["user1-uuid", "user3-uuid"],
                     "b": ["user2-uuid"],
-                    "required-matches": 3,
-                    "match-scores": [{"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}]
+                    "scores": [{"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}, {"a": 3, "b": 5}]
                 }
             ]
         }

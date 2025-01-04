@@ -7,7 +7,11 @@ export default class AuthenticationDs {
         if (!this._auth) {
             firebaseApp()
             this._auth = getAuth();
-            connectAuthEmulator(this._auth, "http://127.0.0.1:9099");
+            
+            if(import.meta.env.VITE_DEV == "true") {
+                connectAuthEmulator(this._auth, "http://127.0.0.1:9099");
+            }
+            
         }
         return this._auth;
     }

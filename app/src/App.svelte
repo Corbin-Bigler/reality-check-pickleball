@@ -36,7 +36,8 @@
     }
 
     function route() {
-        if((pathname.startsWith("/landing") || pathname.startsWith("/dashboard")) && user != null && (userData == null || userData["first-name"] == null) && !AuthenticationState.authenticating) {
+        if((pathname.startsWith("/landing") || pathname.startsWith("/dashboard")) && user != null && (userData == null || userData["first-name"] == null) && !get(AuthenticationState.authenticating)) {
+            console.log("Replaced")
             NavigationState.replace("/finish-sign-up");
         } else if(pathname.startsWith("/finish-sign-up") && user == null) {
             NavigationState.replace("/landing");
@@ -62,12 +63,16 @@
         userData = value;
         route();
     });
+    AuthenticationState.authenticating.subscribe((value) => {
+        console.log("value: "+ value)
+        route();
+    });
 
 
     onMount(() => {
         AuthenticationState.validate().then(() => {
-            route();
             validating = false;
+            route();
         });
 
         if (pathname == "/") {

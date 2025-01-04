@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall } from 'firebase-functions/v2/https'
 import { Status } from './Status';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { DocumentReference, FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 const auth = admin.auth();
 const db = admin.firestore();
@@ -38,6 +38,24 @@ export const createUserData = onCall(async (request) => {
             batch.update(data.league, {
                 players: FieldValue.arrayRemove(doc.ref)
             });
+
+            let games = data.league.collection("games")
+            const gameDocs = await games.get();
+            for (const subColDoc of gameDocs.docs) {
+                const data = subColDoc.data();
+
+                const updatedA = data["a"].map((item: DocumentReference) =>
+                    item.path === doc.ref.path ? userRef : item
+                );
+                const updatedB = data["b"].map((item: DocumentReference) =>
+                    item.path === doc.ref.path ? userRef : item
+                );
+
+                await subColDoc.ref.update({
+                    "a": updatedA,
+                    "b": updatedB
+                });
+            }
         }
         await batch.commit();
 

@@ -31,7 +31,7 @@
     }
 </script>
 
-<div class="flex flex-col space-y-4">
+<div class="flex flex-col space-y-4 items-center">
     {#if error != null}
         <div transition:fade={{ delay: 100 }}>
             <Alert>
@@ -67,4 +67,13 @@
             </Card>
         </div>
     </div>
+
+    <Button
+    class="w-48"
+    type="button"
+    on:click={() => {
+        AuthenticationState.signOut();
+    }}>Sign Out</Button
+>
+
 </div>

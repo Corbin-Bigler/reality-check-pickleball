@@ -25,7 +25,7 @@
     import type { DocumentReference } from "firebase/firestore";
     import { fade } from "svelte/transition";
     import { CloseOutline } from "flowbite-svelte-icons";
-    import type { Game } from "../model/Game";
+    import type { Game, Match } from "../model/Game";
 
     let email = "";
     let matches = 3;
@@ -33,10 +33,11 @@
     let id: string | null;
     let loading = true;
     let league: League | null = null;
+    let games: Game[] = [];
     let showSchedule = false;
     let showAdd = false;
     let showEditGame: Game | null;
-    let scores: { first: number; second: number }[] = [];
+    let editMatches: Match[] = [];
     let editing = false;
     let error: AppError | null;
     let invites: BulkInvites = {};
@@ -56,7 +57,6 @@
     async function removeLeaguePlayer(player: DocumentReference) {
         if (editing || !id) return;
         editing = true;
-        console.log("asdf");
         let response = await FunctionsDs.removeLeaguePlayer(player, id);
         if (response.status != Status.success) {
             error = appError(response.status);
@@ -64,6 +64,7 @@
             return;
         }
         await getLeagueData();
+        editing = false
     }
     async function addLeaguePlayer() {
         if (editing || !id) return;
@@ -93,17 +94,23 @@
         closeAddPlayers();
     }
     async function updateGame() {
-        console.log(scores);
-        // console.log(firstScore);
-        // console.log(secondScore);
+        const game = showEditGame!
+        if(editMatches.find(match => match.a == match.b)) {
+            error = AppError.CanNotTie
+            return
+        }
+        await FirestoreDs.updateGame(game.reference, {"matches": editMatches})
+        showEditGame = null
+        editMatches = []
     }
     async function getLeagueData() {
         if (!id) return;
 
         league = await FirestoreDs.getLeague(id);
         if (!league) return;
+        games = await FirestoreDs.getLeagueGames(id);
 
-        const userIds: string[] = [];
+        const userIds: string[] = []; 
         const inviteIds: string[] = [];
         for (const playerRef of league.players) {
             const collectionPath = playerRef.path.split("/")[0];
@@ -149,7 +156,7 @@
         loading = false;
     });
 
-    function teamOf(game: Game): string | null {
+    function teamOf(game: Game): "a" | "b" | null {
         let uid = AuthenticationState.uid ?? "";
         if (game.a.map((e) => e.id).includes(uid)) return "a";
         else if (game.b.map((e) => e.id).includes(uid)) return "b";
@@ -160,8 +167,7 @@
         if (collectionPath === "users") {
             return emails[ref.id];
         } else if (collectionPath === "invites") {
-            return ""
-            // return invites[ref.id].email;
+            return invites[ref.id].email;
         }
         return null;
     }
@@ -179,7 +185,7 @@
         if (collectionPath === "users") {
             return userDatas[ref.id]["first-name"] + " " + userDatas[ref.id]["last-name"];
         } else if (collectionPath === "invites") {
-            return invites[ref.id].email;
+            return null;
         }
         return null;
     }
@@ -208,6 +214,22 @@
             league.organizers.map((e) => e.id).includes(AuthenticationState.uid ?? "") ||
             get(AuthenticationState.userData)?.admin == true
         );
+    }
+    function canScore(game: Game): Boolean {
+        if (!league) return false;
+        return (
+            teamOf(game) != null ||
+            get(AuthenticationState.userData)?.admin == true
+        )
+    }
+    function finalScore(game: Game): string {
+        return `${game.matches.filter(m => m.a > m.b).length}-${game.matches.filter(m => m.b > m.a).length}`
+    }
+    async function deleteGame() {
+        if (!showEditGame) return;
+        await FirestoreDs.deleteGame(showEditGame.reference)
+        await getLeagueData()
+        showEditGame = null
     }
 
     NavigationState.params.subscribe((value) => {
@@ -266,10 +288,18 @@
                     </div>
                 </form>
             </Card>
-        {:else if showEditGame != null && canEdit()}
+        {:else if showEditGame != null}
             <Card>
                 <form class="flex flex-col space-y-6" on:submit|preventDefault={updateGame}>
-                    <h3 class="text-xl font-medium text-gray-900 dark:text-white">Edit Game</h3>
+                    <div class="flex w-full justify-between">
+                        <h3 class="text-xl font-medium text-gray-900 dark:text-white">Edit Game</h3>
+                        <button
+                            type="button"
+                            on:click={deleteGame}
+                            class="font-medium text-primary-600 hover:underline dark:text-primary-500"
+                            >Delete</button
+                        >
+                    </div>
                     <Table>
                         <TableHead>
                             <TableHeadCell>Match</TableHeadCell>
@@ -280,14 +310,14 @@
                             >
                         </TableHead>
                         <TableBody tableBodyClass="divide-y">
-                            {#each Array.from({ length: showEditGame["required-matches"] }, (_, i) => i) as match}
+                            {#each Array.from({ length: editMatches.length }, (_, i) => i) as match}
                                 <TableBodyRow>
-                                    <TableBodyCell>{match}</TableBodyCell>
+                                    <TableBodyCell>{match + 1}</TableBodyCell>
                                     <TableBodyCell>
-                                        <NumberInput required bind:value={scores[match].first} />
+                                        <NumberInput required bind:value={editMatches[match][teamOf(showEditGame) ?? "a"]} />
                                     </TableBodyCell>
                                     <TableBodyCell>
-                                        <NumberInput required bind:value={scores[match].second} />
+                                        <NumberInput required bind:value={editMatches[match][teamOf(showEditGame) == "b" ? "a" : "b"]} />
                                     </TableBodyCell>
                                 </TableBodyRow>
                             {/each}
@@ -319,6 +349,52 @@
                             <Button type="button" on:click={clickAddPlayer}>Add Player</Button>
                         </div>
                     {/if}
+                    <Table hoverable={games.length > 0}>
+                        <TableHead defaultRow={false}>
+                            <tr>
+                                <TableHeadCell colspan={5}>Games</TableHeadCell>
+                            </tr>
+                            <tr>
+                                <TableHeadCell>Seed</TableHeadCell>
+                                <TableHeadCell>A Team</TableHeadCell>
+                                <TableHeadCell>B Team</TableHeadCell>
+                                <TableHeadCell>Score</TableHeadCell>
+                                <TableHeadCell>
+                                    <span class="sr-only">Score</span>
+                                </TableHeadCell>
+                            </tr>
+                        </TableHead>
+                        <TableBody tableBodyClass="divide-y">
+                            {#if games.length > 0}
+                                {#each games.sort((a, b) => a.court - b.court).sort((a, b) => b.round - a.round) as game}
+                                    <TableBodyRow>
+                                        <TableBodyCell>{game.court + 1}</TableBodyCell>
+                                        <TableBodyCell>{game.a.map((e) => nameOf(e) ?? emailOf(e)).join(", ")}</TableBodyCell>
+                                        <TableBodyCell>{game.b.map((e) => nameOf(e) ?? emailOf(e)).join(", ")}</TableBodyCell>
+                                        <TableBodyCell>{finalScore(game)}</TableBodyCell>
+                                        {#if canScore(game)}
+                                            <TableBodyCell>
+                                                <button
+                                                    on:click={() => {
+                                                        showEditGame = game;
+                                                        editMatches = game.matches
+                                                    }}
+                                                    class="font-medium text-primary-600 hover:underline dark:text-primary-500"
+                                                    >Score</button
+                                                >
+                                            </TableBodyCell>
+                                        {/if}
+                                    </TableBodyRow>
+                                {/each}
+                            {:else}
+                                <TableBodyRow>
+                                    <TableBodyCell colspan={canEdit() ? 5 : 4}
+                                        >No games have been scheduled</TableBodyCell
+                                    >
+                                </TableBodyRow>
+                            {/if}
+                        </TableBody>
+                    </Table>
                     <Table hoverable={league.players.length > 0}>
                         <TableHead defaultRow={false}>
                             <tr>
@@ -326,8 +402,8 @@
                             </tr>
                             <tr>
                                 <TableHeadCell>Rank</TableHeadCell>
-                                <TableHeadCell>Name</TableHeadCell>
                                 <TableHeadCell>Email</TableHeadCell>
+                                <TableHeadCell>Name</TableHeadCell>
                                 <TableHeadCell>Phone</TableHeadCell>
                                 {#if canEdit()}
                                     <TableHeadCell>
@@ -341,8 +417,8 @@
                                 {#each league.players as playerRef}
                                     <TableBodyRow>
                                         <TableBodyCell>{rankOf(playerRef)}</TableBodyCell>
-                                        <TableBodyCell>{nameOf(playerRef)}</TableBodyCell>
                                         <TableBodyCell>{emailOf(playerRef)}</TableBodyCell>
+                                        <TableBodyCell>{nameOf(playerRef)}</TableBodyCell>
                                         <TableBodyCell>{phoneOf(playerRef)}</TableBodyCell>
                                         {#if canEdit()}
                                             <TableBodyCell>
@@ -360,60 +436,6 @@
                             {:else}
                                 <TableBodyRow>
                                     <TableBodyCell colspan={canEdit() ? 5 : 4}>No players in this league</TableBodyCell>
-                                </TableBodyRow>
-                            {/if}
-                        </TableBody>
-                    </Table>
-                    <Table hoverable={league.games.length > 0}>
-                        <TableHead defaultRow={false}>
-                            <tr>
-                                <TableHeadCell colspan={canEdit() ? 5 : 4}>Games</TableHeadCell>
-                            </tr>
-                            <tr>
-                                <TableHeadCell>Seed</TableHeadCell>
-                                <TableHeadCell>A Team</TableHeadCell>
-                                <TableHeadCell>B Team</TableHeadCell>
-                                <TableHeadCell>Score</TableHeadCell>
-                                {#if canEdit()}
-                                    <TableHeadCell>
-                                        <span class="sr-only">Score</span>
-                                    </TableHeadCell>
-                                {/if}
-                            </tr>
-                        </TableHead>
-                        <TableBody tableBodyClass="divide-y">
-                            {#if league.games.length > 0}
-                                {#each league.games as game}
-                                    <TableBodyRow>
-                                        <TableBodyCell></TableBodyCell>
-                                        <TableBodyCell>{game.a.map((e) => nameOf(e)).join(", ")}</TableBodyCell>
-                                        <TableBodyCell>{game.b.map((e) => nameOf(e)).join(", ")}</TableBodyCell>
-                                        <TableBodyCell></TableBodyCell>
-                                        {#if canEdit()}
-                                            <TableBodyCell>
-                                                <button
-                                                    on:click={() => {
-                                                        showEditGame = game;
-                                                        scores = Array.from(
-                                                            { length: showEditGame["required-matches"] },
-                                                            () => ({
-                                                                first: 0,
-                                                                second: 0,
-                                                            })
-                                                        );
-                                                    }}
-                                                    class="font-medium text-primary-600 hover:underline dark:text-primary-500"
-                                                    >Score</button
-                                                >
-                                            </TableBodyCell>
-                                        {/if}
-                                    </TableBodyRow>
-                                {/each}
-                            {:else}
-                                <TableBodyRow>
-                                    <TableBodyCell colspan={canEdit() ? 5 : 4}
-                                        >No games have been scheduled</TableBodyCell
-                                    >
                                 </TableBodyRow>
                             {/if}
                         </TableBody>

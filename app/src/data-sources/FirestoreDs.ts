@@ -1,8 +1,9 @@
-import { connectFirestoreEmulator, getFirestore, collection, addDoc, getDoc, getDocs, doc, setDoc, updateDoc, where, FieldPath, query, documentId, DocumentReference} from "firebase/firestore";
+import { connectFirestoreEmulator, getFirestore, collection, addDoc, getDoc, getDocs, doc, setDoc, updateDoc, where, FieldPath, query, documentId, DocumentReference, deleteDoc} from "firebase/firestore";
 import firebaseApp from "../utility/FirebaseApp";
 import type { UserData } from "../model/UserData";
 import type { League } from "../model/League";
 import type { Invite } from "../model/Invite";
+import type { Game } from "../model/Game";
 
 export default class FirestoreDs {
     private static _db: ReturnType<typeof getFirestore> | null = null;
@@ -10,7 +11,10 @@ export default class FirestoreDs {
         if (!this._db) {
             firebaseApp()
             this._db = getFirestore();
-            connectFirestoreEmulator(this._db, '127.0.0.1', 8084);
+
+            if(import.meta.env.VITE_DEV == "true") {
+                connectFirestoreEmulator(this._db, '127.0.0.1', 8084);
+            }
         }
         return this._db;
     }
@@ -42,6 +46,21 @@ export default class FirestoreDs {
             return data as League;
         } 
         return null;
+    }    
+    static async getLeagueGames(id: string): Promise<Game[]> {
+        const leagueDocRef = doc(this.db, this.leagues, id); // Reference to the league document
+        const gamesCollectionRef = collection(leagueDocRef, "games"); // Reference to the games subcollection
+    
+        const queryRef = query(gamesCollectionRef);
+        const querySnapshot = await getDocs(queryRef);
+        
+        return querySnapshot.docs.map(doc => ({ reference: doc.ref, ...doc.data() } as Game));
+    }
+    static async updateGame(ref: DocumentReference, diff: object): Promise<void> {
+        await updateDoc(ref, diff);
+    }    
+    static async deleteGame(ref: DocumentReference): Promise<void> {
+        await deleteDoc(ref)
     }    
 
     static async getLeagues(ids: string[]): Promise<BulkLeagues> {

@@ -14,7 +14,7 @@ export const createLeague = onCall(async (request) => {
     let data = request.data
     console.log(data)
     const name: string = data.name
-    const description: string = data.name
+    const description: string = data.description
     const startDate: number = data["start-date"]
     const endDate: number = data["end-date"]
     if(!name || !description || !startDate || !endDate) return {status: Status.invalidRequest}
@@ -33,7 +33,7 @@ export const createLeague = onCall(async (request) => {
             "entry-fee": 0,
             "organizers": [userRef],
             "players": [],
-            "games": []
+            "round": 0
         })
 
         await userRef.update({

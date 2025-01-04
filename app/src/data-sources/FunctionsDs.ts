@@ -9,7 +9,10 @@ export default class FunctionsDs {
         if (!this._functions) {
             firebaseApp()
             this._functions = getFunctions();
-            connectFunctionsEmulator(this._functions, "127.0.0.1", 5001);
+
+            if(import.meta.env.VITE_DEV == "true") {
+                connectFunctionsEmulator(this._functions, "127.0.0.1", 5001);
+            }
         }
         return this._functions;
     }

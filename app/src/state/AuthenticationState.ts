@@ -9,7 +9,7 @@ import FunctionsDs from "../data-sources/FunctionsDs";
 import { Status } from "../model/Status";
 
 class AuthenticationState {
-    authenticating = false
+    authenticating = writable<Boolean>(false)
     user = writable<User | null>(null)
     userData = writable<UserData | null>(null)
     get isLoggedIn(): Boolean { 
@@ -62,18 +62,19 @@ class AuthenticationState {
     }
 
     async signIn(email: string, password: string) {
-        this.authenticating = true
+        this.authenticating.set(true)
         try {
             let user = await AuthenticationDs.signIn(email, password)
             await this.finishSignIn(user)
         } catch(error) {
+            this.authenticating.set(false)
             if(!(error instanceof FirebaseError)) throw AppError.Unknown
             if(error.code == AuthErrorCodes.INVALID_PASSWORD || error.code == AuthErrorCodes.USER_DELETED) {
                 throw AppError.InvalidCredentials
             }
             throw AppError.Unknown
         }
-        this.authenticating = false
+        this.authenticating.set(false)
     }
 
     async createAccount(email: string, password: string) {

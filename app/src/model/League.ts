@@ -9,5 +9,4 @@ export type League = {
     "entry-fee": number,
     "organizers": DocumentReference[],
     "players": DocumentReference[],
-    "games": Game[]
 }
